@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Panel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+        }
+        .admin-header {
+            font-size: 24px;
+            color: #d9534f;
+            font-weight: bold;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #d9534f;
+            padding-bottom: 10px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+
+<script>
+    const token = localStorage.getItem("jwt_token");
+    if (!token) {
+        alert("Not logged in. Please log in first.");
+        window.location.href = "/login.html";
+    }
+
+    fetch("/api/userinfo", {
+        method: "GET",
+        headers: {
+            "Authorization": "Bearer " + token
+        }
+    })
+    .then(res => {
+        if (!res.ok) throw new Error("Invalid or expired token");
+        return res.json();
+    })
+    .then(data => {
+        if (!data.roles || !data.roles.includes("ROLE_ADMIN")) {
+            alert("⛔ Access denied. Admin only.");
+            window.location.href = "/userinfo.html";
+        }
+    })
+    .catch(err => {
+        alert("Unable to access admin page: " + err.message);
+        localStorage.removeItem("jwt_token");
+        window.location.href = "/login.html";
+    });
+</script>
+
+<div class="admin-header">⚠️ Admin Panel</div>
+
+<div class="section">
+    <h3>👤 User Management</h3>
+    <div style="margin-top: 12px;">
+        <button onclick="loadUsers()">🔍 View All Users</button>
+    </div>
+    <div id="userList" style="margin-top: 16px;"></div>
+</div>
+
+<div class="section">
+    <h3>📋 All Task Management</h3>
+    <form id="filterForm" onsubmit="event.preventDefault(); loadAllTasks(0);">
+        <label>Status:
+            <select id="status">
+                <option value="">All</option>
+                <option value="PENDING">Pending</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="COMPLETED">Completed</option>
+            </select>
+        </label>
+        <label>Priority:
+            <select id="priority">
+                <option value="">All</option>
+                <option value="HIGH">High</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="LOW">Low</option>
+            </select>
+        </label>
+        <label>Keyword:
+            <input type="text" id="keyword" placeholder="Title or Description">
+        </label>
+        <label>User:
+            <input type="text" id="username" placeholder="Username">
+        </label>
+        <button type="submit">🔍 Filter</button>
+    </form>
+
+    <div id="taskList" style="margin-top: 20px;"></div>
+
+    <div style="margin-top: 20px;">
+        <button onclick="downloadTaskExcel()">📥 Download Task Excel</button>
+    </div>
+</div>
+
+<div class="section">
+    <h3>🆕 Create Task for User</h3>
+    <form id="createTaskForm">
+        <p>Username: <input type="text" id="create_username" required></p>
+        <p>Title: <input type="text" id="create_title" required></p>
+        <p>Description: <textarea id="create_description"></textarea></p>
+        <p>
+            Priority:
+            <select id="create_priority">
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+            </select>
+        </p>
+        <p>
+            Status:
+            <select id="create_status">
+                <option value="PENDING">Pending</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="COMPLETED">Completed</option>
+            </select>
+        </p>
+        <p>
+            Deadline: <input type="datetime-local" id="create_deadline">
+        </p>
+        <p>
+            <button type="submit">Create Task</button>
+        </p>
+    </form>
+</div>
+
+<div class="section">
+    <button onclick="window.location.href='/userinfo.html'">🔙 Back to User Info</button>
+</div>
+
+<div class="section">
+    <h3>🖥 System Status</h3>
+    <button onclick="loadSystemStatus()">🔄 Refresh</button>
+    <div id="systemStatus" style="margin-top: 12px; font-family: monospace;"></div>
+</div>
+
+<script>
+    let currentPage = 0;
+    const pageSize = 5;
+
+    function loadUsers(page = 0) {
+        fetch(`/api/admin/users?page=${page}&size=${pageSize}`, {
+            headers: { "Authorization": "Bearer " + token }
+        })
+        .then(res => {
+            if (!res.ok) throw new Error("Permission denied or failed request");
+            return res.json();
+        })
+        .then(data => {
+            const container = document.getElementById("userList");
+            const users = data.content;
+            const totalPages = data.totalPages;
+
+            if (!users || users.length === 0) {
+                container.innerHTML = "<p>No users found</p>";
+                return;
+            }
+
+            container.innerHTML = users.map(user => `
+                <div style="border-bottom: 1px solid #ddd; padding: 8px 0;">
+                    <strong>Username:</strong> ${user.username} |
+                    <strong>Email:</strong> ${user.email || "N/A"} |
+                    <strong>Phone:</strong> ${user.phone || "N/A"} |
+                    <strong>Registered:</strong> ${user.createdAt || "Unknown"} |
+                    <strong>Role:</strong> <span id="role-${user.id}">${user.role || "Unknown"}</span>
+                    <br>
+                    <label for="role-select-${user.id}">Change to: </label>
+                    <select id="role-select-${user.id}">
+                        <option value="USER" ${user.role === 'USER' ? 'selected' : ''}>USER</option>
+                        <option value="ADMIN" ${user.role === 'ADMIN' ? 'selected' : ''}>ADMIN</option>
+                    </select>
+                    <button style="margin-left: 10px;" onclick="submitRoleChange(${user.id})">
+                        Set Role
+                    </button>
+                </div>
+            `).join("");
+
+            container.innerHTML += `
+                <div style="margin-top: 16px;">
+                    <button ${page === 0 ? "disabled" : ""} onclick="loadUsers(${page - 1})">Previous</button>
+                    <span style="margin: 0 10px;">Page ${page + 1} / ${totalPages}</span>
+                    <button ${page + 1 >= totalPages ? "disabled" : ""} onclick="loadUsers(${page + 1})">Next</button>
+                </div>
+            `;
+
+            currentPage = page;
+        })
+        .catch(err => {
+            document.getElementById("userList").innerHTML = `<p style="color: red;">Failed to load: ${err.message}</p>`;
+        });
+    }
+
+    function submitRoleChange(userId) {
+        const select = document.getElementById(`role-select-${userId}`);
+        const newRole = select.value;
+
+        fetch(`/api/admin/users/${userId}/role`, {
+            method: "PUT",
+            headers: {
+                "Authorization": "Bearer " + token,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ role: newRole })
+        })
+        .then(res => {
+            if (!res.ok) throw new Error("Failed to update role");
+            document.getElementById(`role-${userId}`).innerText = newRole;
+            alert("Role updated successfully");
+        })
+        .catch(err => {
+            alert("Failed to update role: " + err.message);
+        });
+    }
+
+    function loadAllTasks(page = 0) {
+        const status = document.getElementById("status").value.trim();
+        const priority = document.getElementById("priority").value.trim();
+        const keyword = document.getElementById("keyword").value.trim();
+        const username = document.getElementById("username").value.trim();
+
+        const url = new URL("/api/admin/tasks", window.location.origin);
+        url.searchParams.set("page", page);
+        url.searchParams.set("size", pageSize);
+        if (status) url.searchParams.set("status", encodeURIComponent(status));
+        if (priority) url.searchParams.set("priority", encodeURIComponent(priority));
+        if (keyword) url.searchParams.set("keyword", encodeURIComponent(keyword));
+        if (username) url.searchParams.set("username", encodeURIComponent(username));
+
+        fetch(url.toString(), {
+            headers: { "Authorization": "Bearer " + token }
+        })
+        .then(res => {
+            if (!res.ok) throw new Error("Failed to load tasks");
+            return res.json();
+        })
+        .then(data => {
+            const list = document.getElementById("taskList");
+            const tasks = data.content;
+            const totalPages = data.totalPages;
+
+            if (!tasks || tasks.length === 0) {
+                list.innerHTML = "<p>No tasks found</p>";
+                return;
+            }
+
+            list.innerHTML = tasks.map(task => {
+                const deadline = task.deadline ? new Date(task.deadline).toLocaleString() : "N/A";
+                return `
+                    <div style="margin-bottom: 12px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">
+                        <strong>${task.title}</strong><br>
+                        ${task.description || "No description"} |
+                        Priority: ${task.priority} |
+                        Deadline: ${deadline} |
+                        Status: ${task.status} |
+                        User: ${task.username || "Unknown"}
+                        <br>
+                        <button onclick="window.location.href='/edittask.html?id=${task.id}'">Edit</button>
+                        <button onclick="deleteTask(${task.id})">Delete</button>
+                    </div>
+                `;
+            }).join("");
+
+            list.innerHTML += `
+                <div style="margin-top: 12px;">
+                    <button ${page === 0 ? "disabled" : ""} onclick="loadAllTasks(${page - 1})">Previous</button>
+                    <span style="margin: 0 10px;">Page ${page + 1} / ${totalPages}</span>
+                    <button ${page + 1 >= totalPages ? "disabled" : ""} onclick="loadAllTasks(${page + 1})">Next</button>
+                </div>
+            `;
+        })
+        .catch(err => {
+            document.getElementById("taskList").innerHTML = `<p style="color:red;">Failed to load: ${err.message}</p>`;
+        });
+    }
+
+    function deleteTask(taskId) {
+        if (!confirm("Are you sure you want to delete this task?")) return;
+
+        fetch(`/api/tasks/${taskId}`, {
+            method: "DELETE",
+            headers: { "Authorization": "Bearer " + token }
+        })
+        .then(res => {
+            if (!res.ok) throw new Error("Delete failed");
+            alert("Task deleted");
+            loadAllTasks(currentPage);
+        })
+        .catch(err => {
+            alert("Failed to delete task. Please try again later.");
+        });
+    }
+
+    document.getElementById("createTaskForm").addEventListener("submit", function (e) {
+        e.preventDefault();
+
+        const task = {
+            username: document.getElementById("create_username").value,
+            title: document.getElementById("create_title").value,
+            description: document.getElementById("create_description").value,
+            priority: document.getElementById("create_priority").value,
+            status: document.getElementById("create_status").value,
+            deadline: document.getElementById("create_deadline").value,
+        };
+
+        fetch("/api/admin/tasks/create-for-user", {
+            method: "POST",
+            headers: {
+                "Authorization": "Bearer " + token,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(task)
+        })
+        .then(res => {
+            if (!res.ok) throw new Error("Failed to create task");
+            return res.json();
+        })
+        .then(() => {
+            alert("Task created successfully ✅");
+            loadAllTasks(currentPage);
+        })
+        .catch(err => {
+            alert("Failed to create task: " + err.message);
+        });
+    });
+
+    function loadSystemStatus() {
+        fetch("/api/admin/system/status", {
+            headers: { "Authorization": "Bearer " + token }
+        })
+        .then(res => {
+            if (!res.ok) throw new Error("Failed to load status");
+            return res.json();
+        })
+        .then(data => {
+            const container = document.getElementById("systemStatus");
+            container.innerHTML = Object.entries(data)
+                .map(([key, value]) => `<p><strong>${key}</strong>: ${value}</p>`)
+                .join("");
+        })
+        .catch(err => {
+            document.getElementById("systemStatus").innerHTML =
+                `<p style="color:red;">Failed to load: ${err.message}</p>`;
+        });
+    }
+
+    function downloadTaskExcel() {
+        fetch("/api/admin/tasks/export", {
+            method: "GET",
+            headers: { "Authorization": "Bearer " + token }
+        })
+        .then(response => {
+            if (!response.ok) throw new Error("Export failed");
+            return response.blob();
+        })
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "tasks.xlsx";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        })
+        .catch(error => {
+            alert("Export failed: " + error.message);
+        });
+    }
+
+    window.addEventListener("DOMContentLoaded", loadSystemStatus);
+</script>
+
+</body>
+</html>

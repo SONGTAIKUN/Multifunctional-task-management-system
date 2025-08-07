@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>User Info</title>
+    <script src="https://cdn.jsdelivr.net/npm/jwt-decode@3.1.2/build/jwt-decode.min.js"></script>
+</head>
+<body>
+    <h2>User Information</h2>
+    <div id="info"></div>
+    <div id="roleDisplay" style="margin-top: 12px; font-weight: bold;"></div>
+
+    <div id="taskList" style="position: absolute; top: 50px; right: 20px; width: 400px; border-left: 2px solid #ccc; padding-left: 20px;">
+        <h3>📋 Task List (Paginated)</h3>
+        <div id="taskItems"></div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem("jwt_token");
+        if (!token) {
+            alert("Not logged in. Please log in first.");
+            window.location.href = "/login.html";
+        }
+
+        let decoded;
+        try {
+            decoded = jwt_decode(token);
+        } catch (err) {
+            localStorage.removeItem("jwt_token");
+            alert("Invalid token. Please log in again.");
+            window.location.href = "/login.html";
+        }
+
+        let currentPage = 0;
+        const pageSize = 10;
+
+        function loadTasks(page) {
+            fetch(`/api/tasks/mine?page=${page}&size=${pageSize}`, {
+                headers: {
+                    "Authorization": "Bearer " + token
+                }
+            })
+            .then(res => res.json())
+            .then(pageData => {
+                const container = document.getElementById("taskItems");
+                container.innerHTML = "";
+
+                if (!pageData.content || pageData.content.length === 0) {
+                    container.innerHTML = "<p>No tasks found.</p>";
+                    return;
+                }
+
+                container.innerHTML = pageData.content.map(task => {
+                    const deadline = task.deadline ? new Date(task.deadline).toLocaleString() : "None";
+                    return `
+                        <div style="margin-bottom: 12px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">
+                            <strong>${task.title}</strong><br>
+                            ${task.description || "None"} |
+                            ${task.priority} |
+                            ${deadline} |
+                            ${task.status}
+                            <br>
+                            <button onclick="window.location.href='/edittask.html?id=${task.id}'">Edit</button>
+                            <button onclick="deleteTask(${task.id})">Delete</button>
+                        </div>
+                    `;
+                }).join("");
+
+                container.innerHTML += `
+                    <div style="margin-top: 16px;">
+                        <button ${pageData.first ? "disabled" : ""} onclick="loadTasks(${page - 1})">Previous</button>
+                        <span style="margin: 0 10px;">Page ${page + 1} / ${pageData.totalPages}</span>
+                        <button ${pageData.last ? "disabled" : ""} onclick="loadTasks(${page + 1})">Next</button>
+                    </div>
+                `;
+
+                currentPage = page;
+            })
+            .catch(() => {
+                document.getElementById("taskItems").innerHTML = "<p>Failed to load tasks.</p>";
+            });
+        }
+
+        fetch("/api/userinfo", {
+            method: "GET",
+            headers: {
+                "Authorization": "Bearer " + token
+            }
+        })
+        .then(res => {
+            if (!res.ok) throw new Error("Invalid or expired token");
+            return res.json();
+        })
+        .then(data => {
+            const div = document.getElementById("info");
+
+            let avatarHtml = data.avatarUrl
+                ? `<img src="/api/avatar/${data.avatarUrl}" alt="Avatar" width="120" />`
+                : `<p>No avatar uploaded</p>`;
+
+            div.innerHTML = `
+                ${avatarHtml}
+                <p>Username: ${data.username}</p>
+                <p>Email: ${data.email || "None"}</p>
+                <p>Phone: ${data.phone || "None"}</p>
+                <p>Registered At: ${data.created_at || data.createdAt || "Unknown"}</p>
+                <p id="buttonGroup">
+                    <button onclick="window.location.href='/changepassword.html'">Change Password</button>
+                    <button onclick="window.location.href='/uploadavatar.html'">Upload Avatar</button>
+                    <button onclick="window.location.href='/createtask.html'">Create Task</button>
+                    <button onclick="window.location.href='/filtertask.html'">Filter Tasks</button>
+                    <button onclick="logout()">🚪 Logout</button>
+                </p>
+            `;
+
+            const roleDisplay = document.getElementById("roleDisplay");
+            if (data.roles && data.roles.includes("ROLE_ADMIN")) {
+                roleDisplay.innerText = "You are an administrator";
+
+                const buttonGroup = document.getElementById("buttonGroup");
+                const adminBtn = document.createElement("button");
+                adminBtn.textContent = "🛠 Admin Page";
+                adminBtn.onclick = () => window.location.href = "/admin.html";
+                buttonGroup.insertBefore(adminBtn, buttonGroup.lastElementChild);
+            } else if (data.roles && data.roles.includes("ROLE_USER")) {
+                roleDisplay.innerText = "You are a regular user";
+            } else {
+                roleDisplay.innerText = "Unknown role";
+            }
+
+            loadTasks(currentPage);
+        })
+        .catch(err => {
+            alert("Please log in again: " + err.message);
+            localStorage.removeItem("jwt_token");
+            window.location.href = "/login.html";
+        });
+
+        function deleteTask(taskId) {
+            if (!confirm("Are you sure you want to delete this task?")) return;
+
+            fetch(`/api/tasks/${taskId}`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": "Bearer " + token
+                }
+            })
+            .then(res => {
+                if (!res.ok) throw new Error("Deletion failed");
+                alert("Task deleted");
+                location.reload();
+            })
+            .catch(() => {
+                alert("Failed to delete task. Please try again later.");
+            });
+        }
+
+        function logout() {
+            localStorage.removeItem("jwt_token");
+            localStorage.removeItem("role");
+            alert("You have been logged out.");
+            window.location.href = "/login.html";
+        }
+    </script>
+</body>
+</html>

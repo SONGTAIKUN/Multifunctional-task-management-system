@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Avatar</title>
+</head>
+<body>
+    <h2>Upload Avatar</h2>
+    <form id="uploadForm">
+        <input type="file" id="avatar_img" name="avatar_img" accept="image/*" required>
+        <button type="submit">Upload</button>
+    </form>
+    <p id="status"></p>
+
+    <script>
+        const token = localStorage.getItem("jwt_token");
+        if (!token) {
+            alert("Not logged in. Please login first.");
+            window.location.href = "/login.html";
+        }
+
+        const form = document.getElementById("uploadForm");
+        const status = document.getElementById("status");
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const fileInput = document.getElementById("avatar_img");
+            const file = fileInput.files[0];
+
+            if (!file) {
+                status.textContent = "Please select an image file first.";
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("avatar_img", file);
+
+            try {
+                const res = await fetch("/api/upload-avatar", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": "Bearer " + token
+                    },
+                    body: formData
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(errorText || "Upload failed");
+                }
+
+                status.style.color = "green";
+                status.textContent = "✅ Avatar uploaded successfully";
+
+                setTimeout(() => window.location.href = "/userinfo.html", 1500);
+            } catch (err) {
+                status.style.color = "red";
+                status.textContent = "❌ Upload failed: " + err.message;
+            }
+        });
+    </script>
+</body>
+</html>

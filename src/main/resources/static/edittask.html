@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Task</title>
+</head>
+<body>
+    <h2>Edit Task</h2>
+    <form id="taskForm">
+        <input type="hidden" id="taskId" />
+        <p>
+            Title: <input type="text" id="title" required />
+        </p>
+        <p>
+            Description: <textarea id="description"></textarea>
+        </p>
+        <p>
+            Priority:
+            <select id="priority">
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+            </select>
+        </p>
+        <p>
+            Deadline: <input type="datetime-local" id="deadline" />
+        </p>
+        <p>
+            Status:
+            <select id="status">
+                <option value="PENDING">Pending</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="COMPLETED">Completed</option>
+            </select>
+        </p>
+        <p>
+            <button type="submit">Save Changes</button>
+            <button type="button" onclick="window.location.href='/userinfo.html'">Cancel</button>
+        </p>
+    </form>
+
+    <script>
+        const token = localStorage.getItem("jwt_token");
+        if (!token) {
+            alert("Please log in first.");
+            window.location.href = "/login.html";
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const taskId = params.get("id");
+        if (!taskId) {
+            alert("Task ID not specified.");
+            window.location.href = "/userinfo.html";
+        }
+
+        // Load task details
+        fetch("/api/tasks/" + taskId, {
+            headers: {
+                "Authorization": "Bearer " + token
+            }
+        })
+        .then(res => {
+            if (!res.ok) throw new Error("Failed to load task.");
+            return res.json();
+        })
+        .then(task => {
+            document.getElementById("taskId").value = task.id;
+            document.getElementById("title").value = task.title;
+            document.getElementById("description").value = task.description || "";
+            document.getElementById("priority").value = task.priority;
+            document.getElementById("status").value = task.status;
+            if (task.deadline) {
+                document.getElementById("deadline").value = new Date(task.deadline).toISOString().slice(0, 16);
+            }
+        })
+        .catch(err => {
+            alert("Failed to load task: " + err.message);
+            window.location.href = "/userinfo.html";
+        });
+
+        // Submit task changes
+        document.getElementById("taskForm").addEventListener("submit", function (e) {
+            e.preventDefault();
+            const task = {
+                title: document.getElementById("title").value,
+                description: document.getElementById("description").value,
+                priority: document.getElementById("priority").value,
+                status: document.getElementById("status").value,
+                deadline: document.getElementById("deadline").value
+            };
+
+            fetch("/api/tasks/" + taskId, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + token
+                },
+                body: JSON.stringify(task)
+            })
+            .then(res => {
+                if (!res.ok) throw new Error("Update failed.");
+                alert("Task updated successfully.");
+                window.location.href = "/userinfo.html";
+            })
+            .catch(err => alert("Failed to update task: " + err.message));
+        });
+    </script>
+</body>
+</html>

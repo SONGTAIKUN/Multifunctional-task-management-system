@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Register</title>
+</head>
+<body>
+    <h2>Register</h2>
+    <form id="registerForm">
+        <label>Username:</label><br>
+        <input type="text" id="username" required><br><br>
+
+        <label>Password:</label><br>
+        <input type="password" id="password" required><br><br>
+
+        <label>Confirm Password:</label><br>
+        <input type="password" id="confirmPassword" required><br><br>
+
+        <label>Email:</label><br>
+        <input type="email" id="email" required><br><br>
+
+        <label>Phone:</label><br>
+        <input type="text" id="phone" required><br><br>
+
+        <button type="submit">Register</button>
+    </form>
+
+    <p id="message" style="color: red;"></p>
+
+    <script>
+        document.getElementById("registerForm").addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+            const confirmPassword = document.getElementById("confirmPassword").value;
+            const email = document.getElementById("email").value;
+            const phone = document.getElementById("phone").value;
+
+            if (password !== confirmPassword) {
+                document.getElementById("message").innerText = "Passwords do not match.";
+                return;
+            }
+
+            try {
+                const res = await fetch("/api/register", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, password, email, phone })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    alert("Registration successful. Please log in.");
+                    window.location.href = "/login.html";
+                } else {
+                    document.getElementById("message").innerText = data.message || "Registration failed.";
+                }
+            } catch (err) {
+                document.getElementById("message").innerText = "Registration failed. Please check your network.";
+            }
+        });
+    </script>
+</body>
+</html>

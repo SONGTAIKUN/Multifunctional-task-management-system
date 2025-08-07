@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Task Filter</title>
+</head>
+<body>
+  <h2>🎯 Filter Tasks</h2>
+
+  <form id="filterForm" onsubmit="event.preventDefault(); loadTasks(0);">
+    <label>Status:
+      <select id="status">
+        <option value="">All</option>
+        <option value="PENDING">Pending</option>
+        <option value="IN_PROGRESS">In Progress</option>
+        <option value="COMPLETED">Completed</option>
+      </select>
+    </label>
+
+    <label>Priority:
+      <select id="priority">
+        <option value="">All</option>
+        <option value="HIGH">High</option>
+        <option value="MEDIUM">Medium</option>
+        <option value="LOW">Low</option>
+      </select>
+    </label>
+
+    <label>Keyword:
+      <input type="text" id="keyword" placeholder="Search title/description" />
+    </label>
+
+    <button type="submit">Filter</button>
+  </form>
+
+  <hr>
+  <div id="taskList"></div>
+
+  <script>
+    const token = localStorage.getItem("jwt_token");
+
+    if (!token || !token.startsWith("ey")) {
+      alert("Not logged in or invalid token. Please log in first.");
+      window.location.href = "/login.html";
+    }
+
+    let currentPage = 0;
+    const pageSize = 10;
+
+    function loadTasks(page) {
+      const status = document.getElementById("status").value.trim();
+      const priority = document.getElementById("priority").value.trim();
+      const keyword = document.getElementById("keyword").value.trim();
+
+      const url = new URL("/api/tasks/mine/filter", window.location.origin);
+      url.searchParams.set("page", page);
+      url.searchParams.set("size", pageSize);
+      if (status !== "") {
+        url.searchParams.set("status", encodeURIComponent(status));
+      }
+      if (priority !== "") {
+        url.searchParams.set("priority", encodeURIComponent(priority));
+      }
+      if (keyword !== "") {
+        url.searchParams.set("keyword", encodeURIComponent(keyword));
+      }
+
+      fetch(url.toString(), {
+        headers: {
+          "Authorization": "Bearer " + token
+        }
+      })
+      .then(async res => {
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Server error: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then(data => {
+        const container = document.getElementById("taskList");
+        container.innerHTML = "";
+
+        if (!data.content || data.content.length === 0) {
+          container.innerHTML = "<p>No results found</p>";
+          return;
+        }
+
+        container.innerHTML = data.content.map(task => {
+          const deadline = task.deadline ? new Date(task.deadline).toLocaleString() : "N/A";
+          return `
+            <div style="margin-bottom: 12px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">
+              <strong>${task.title}</strong><br>
+              ${task.description || "No description"} |
+              ${task.priority} |
+              ${deadline} |
+              ${task.status}
+            </div>
+          `;
+        }).join("");
+
+        container.innerHTML += `
+          <div style="margin-top: 16px;">
+            <button ${data.first ? "disabled" : ""} onclick="loadTasks(${page - 1})">Previous</button>
+            <span style="margin: 0 10px;">Page ${page + 1} / ${data.totalPages}</span>
+            <button ${data.last ? "disabled" : ""} onclick="loadTasks(${page + 1})">Next</button>
+          </div>
+        `;
+
+        currentPage = page;
+      })
+      .catch(err => {
+        document.getElementById("taskList").innerHTML = `<p>Filter error: ${err.message}</p>`;
+      });
+    }
+
+    loadTasks(currentPage);
+  </script>
+</body>
+</html>
