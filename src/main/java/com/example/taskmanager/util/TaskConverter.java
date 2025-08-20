@@ -1,6 +1,7 @@
 package com.example.taskmanager.util;
 
 import com.example.taskmanager.model.Task;
+
 import com.example.taskmanager.dto.TaskDTO;
 
 /**
@@ -27,7 +28,7 @@ public class TaskConverter {
         dto.setDeadline(task.getDeadline());
         dto.setCreatedAt(task.getCreatedAt());
         dto.setUpdatedAt(task.getUpdatedAt());
-        dto.setDeleted(task.isDeleted());
+        dto.setDeleted(task.getDeleted());
 
         // Set user ID and optionally the username (if user is loaded)
         dto.setUserId(task.getUserId());

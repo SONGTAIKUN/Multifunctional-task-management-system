@@ -1,8 +1,10 @@
 package com.example.taskmanager.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.example.taskmanager.model.User;
-import com.example.taskmanager.repository.UserRepository;
+import com.example.taskmanager.repository.UserMapper;   
 import com.example.taskmanager.service.AuthService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -12,71 +14,82 @@ import java.time.Duration;
 
 /**
  * Implementation of the authentication service.
- * Handles login attempts, tracks failures per IP using Redis,
- * and temporarily locks IPs that exceed the maximum allowed failures.
+ *
+ * Provides login functionality with brute-force protection:
+ * - Tracks failed login attempts per IP using Redis
+ * - Locks IPs for a defined duration after exceeding max allowed failures
+ * - Resets failure counters upon successful login
  */
 @Service
 public class AuthServiceImpl implements AuthService {
 
-    // Redis template for interacting with the cache
+    /** Redis template for interacting with Redis cache. */
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
-    // Repository to query user data from the database
+    /** Mapper for querying user information from the database. */
     @Autowired
-    private UserRepository userRepository;
+    private UserMapper userMapper;
 
-    // Password encoder to securely compare raw and hashed passwords
+    /** Password encoder for securely comparing raw and hashed passwords. */
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    // Maximum allowed failed login attempts before locking the IP
+    /** Maximum allowed failed login attempts before locking the IP. */
     private static final int MAX_FAILS = 5;
 
-    // Duration for which the IP will be locked after too many failures
+    /** Lock duration for IPs that exceed maximum failed attempts. */
     private static final Duration LOCK_DURATION = Duration.ofMinutes(15);
 
     /**
-     * Handles login logic:
-     * - Tracks failed attempts per IP
-     * - Locks IP if too many failed attempts occur
-     * - Clears failure data upon successful login
+     * Handles login process with brute-force protection.
      *
-     * @param ip       IP address of the client attempting login
-     * @param username Username provided
-     * @param password Password provided
-     * @return Login result message
+     * Logic:
+     * 1. Checks if IP is locked; if yes, denies login immediately.
+     * 2. Validates username and password against stored credentials.
+     * 3. On failure:
+     *    - Increments failure count in Redis
+     *    - Locks IP if failure count exceeds threshold
+     * 4. On success:
+     *    - Clears any failure and lock records for the IP
+     *
+     * @param ip       the client IP address
+     * @param username the username entered
+     * @param password the password entered
+     * @return message describing the result of the login attempt
      */
     @Override
     public String login(String ip, String username, String password) {
-        String lockKey = "login:lock:" + ip;    // Redis key for lock status
-        String failKey = "login:fail:" + ip;    // Redis key for failed attempt count
+        final String lockKey = "login:lock:" + ip;
+        final String failKey = "login:fail:" + ip;
 
         // Check if this IP is currently locked
         if (Boolean.TRUE.equals(redisTemplate.hasKey(lockKey))) {
             return "This IP has failed to log in too many times. Please try again in 15 minutes.";
         }
 
-        // Fetch user from database
-        User user = userRepository.findByUsername(username);
+        // Fetch user by username
+        User user = userMapper.selectOne(
+                new QueryWrapper<User>().lambda().eq(User::getUsername, username));
 
-        // If user doesn't exist or password doesn't match
+        // Validate credentials
         if (user == null || !passwordEncoder.matches(password, user.getPassword())) {
-            // Increment failed login count
-            Long fails = redisTemplate.opsForValue().increment(failKey);
-            // Set expiration on the failure key (sliding expiration)
+            Long fails = redisTemplate.opsForValue().increment(failKey); // 自增1
             redisTemplate.expire(failKey, LOCK_DURATION);
 
-            // If failures exceed threshold, lock the IP
             if (fails != null && fails >= MAX_FAILS) {
+                // Exceeded threshold -> lock IP
                 redisTemplate.opsForValue().set(lockKey, "locked", LOCK_DURATION);
                 return "Too many failed login attempts, IP locked for 15 minutes";
             }
 
-            return "Username or password is incorrect and failed " + fails + " times.";
+            long used = (fails == null ? 1 : fails);
+            long remaining = Math.max(0, MAX_FAILS - used);
+            return "Username or password is incorrect. Failed " + used +
+                   " time(s). Remaining before lock: " + remaining + ".";
         }
 
-        // Successful login: clear any existing failure records
+        // Successful login -> clear failure and lock records
         redisTemplate.delete(failKey);
         redisTemplate.delete(lockKey);
         return "Login successful";

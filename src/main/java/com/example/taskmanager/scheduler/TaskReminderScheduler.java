@@ -2,10 +2,8 @@ package com.example.taskmanager.scheduler;
 
 import com.example.taskmanager.model.Task;
 import com.example.taskmanager.model.User;
-import com.example.taskmanager.repository.TaskRepository;
-import com.example.taskmanager.repository.UserRepository;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.taskmanager.repository.UserMapper;
+import com.example.taskmanager.service.TaskService;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,14 +21,17 @@ import java.util.List;
 @Component
 public class TaskReminderScheduler {
 
-    @Autowired
-    private TaskRepository taskRepository;
+    private final TaskService taskService;
+    private final UserMapper userMapper;
+    private final JavaMailSender mailSender;
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private JavaMailSender mailSender;
+    public TaskReminderScheduler(TaskService taskService,
+                                 UserMapper userMapper,
+                                 JavaMailSender mailSender) {
+        this.taskService = taskService;
+        this.userMapper = userMapper;
+        this.mailSender = mailSender;
+    }
 
     /**
      * Scheduled method that runs every day at 8:00 AM (cron expression: "0 0 8 * * ?").
@@ -43,12 +44,12 @@ public class TaskReminderScheduler {
         LocalDateTime todayEnd = LocalDate.now().atTime(LocalTime.MAX);
 
         // Fetch all tasks that are due today and not marked as deleted
-        List<Task> dueToday = taskRepository.findByDeadlineBetweenAndIsDeletedFalse(todayStart, todayEnd);
+        List<Task> dueToday = taskService.findByDeadlineBetween(todayStart, todayEnd);
 
         // Send email reminder to each user with a valid email address
         for (Task task : dueToday) {
-            User user = task.getUser(); 
-            if (user != null && user.getEmail() != null) {
+            User user = userMapper.selectById(task.getUserId());
+            if (user != null && user.getEmail() != null && !user.getEmail().isBlank()) {
                 sendEmailReminder(user.getEmail(), task.getTitle(), task.getDeadline());
             }
         }
@@ -65,7 +66,7 @@ public class TaskReminderScheduler {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(to);
         message.setSubject("Today's task reminder");
-        message.setText("You have a task due today：" + taskTitle + "\nDeadline: " + deadline);
+        message.setText("You have a task due today:" + taskTitle + "\nDeadline: " + deadline);
         mailSender.send(message);
     }
 }

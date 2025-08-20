@@ -1,11 +1,11 @@
 package com.example.taskmanager.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.taskmanager.model.User;
-import com.example.taskmanager.repository.UserRepository;
+import com.example.taskmanager.repository.UserMapper;
 import com.example.taskmanager.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,11 +23,14 @@ import java.util.stream.Collectors;
 @RequestMapping("/api")     // Base path prefix for all endpoints in this controller
 public class UserApiController {
 
-    @Autowired
-    private JwtUtil jwtUtil;    // Utility class to handle JWT token operations
+    private final JwtUtil jwtUtil;    // Utility class to handle JWT token operations
 
-    @Autowired
-    private UserRepository userRepository;      // Repository to access user data from the database
+    private final UserMapper userMapper;     // Repository to access user data from the database
+
+    public UserApiController(JwtUtil jwtUtil, UserMapper userMapper) {
+        this.jwtUtil = jwtUtil;
+        this.userMapper = userMapper;
+    }
 
     /**
      * Endpoint to get the current authenticated user's information.
@@ -59,16 +62,18 @@ public class UserApiController {
         String username = jwtUtil.extractUsername(token);
 
         // Retrieve the user from the database
-        User user = userRepository.findByUsername(username);
+        User user = userMapper.selectOne(
+                new LambdaQueryWrapper<User>().eq(User::getUsername, username)
+        );
         if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User does not exist");
         }
 
         // Get the roles (authorities) from the Spring Security context
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        List<String> roles = authentication.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.toList());
+        List<String> roles = authentication != null
+                ? authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList())
+                : List.of();
 
         // Build the response with user information
         Map<String, Object> response = new HashMap<>();

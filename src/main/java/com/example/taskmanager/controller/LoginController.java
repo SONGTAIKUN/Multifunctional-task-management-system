@@ -1,21 +1,18 @@
 package com.example.taskmanager.controller;
 
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.HttpStatus;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.taskmanager.model.User;
+import com.example.taskmanager.repository.UserMapper;
+import com.example.taskmanager.service.AuthService;
+import com.example.taskmanager.util.JwtUtil;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.*;
+
 import java.util.HashMap;
-
-import com.example.taskmanager.repository.UserRepository;
-import com.example.taskmanager.service.AuthService;
-import com.example.taskmanager.util.JwtUtil; 
-
-import com.example.taskmanager.model.User;
+import java.util.Map;
 
 @RestController     // Marks this class as a REST controller where each method returns JSON data
 public class LoginController {
@@ -27,7 +24,7 @@ public class LoginController {
     private JwtUtil jwtUtil;    // Utility for generating and validating JWT tokens
 
     @Autowired
-    private UserRepository userRepository;      // Repository for accessing user data from the database
+    private UserMapper userMapper;      // Repository for accessing user data from the database
 
 
     /**
@@ -57,7 +54,9 @@ public class LoginController {
         if ("Login successful".equals(result)) {
 
             // Fetch user information from the database
-            User user = userRepository.findByUsername(username);
+            User user = userMapper.selectOne(
+                    new LambdaQueryWrapper<User>().eq(User::getUsername, username)
+            );
 
             // If user does not exist (should not happen under normal circumstances)
             if (user == null) {

@@ -33,9 +33,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        // Get the current request URI (for optional use/logging)
-        String path = request.getRequestURI();
-
         // Retrieve the Authorization header
         String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
 

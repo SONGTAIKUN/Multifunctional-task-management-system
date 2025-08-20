@@ -1,6 +1,6 @@
 package com.example.taskmanager.model;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -9,37 +9,40 @@ import java.time.LocalDateTime;
  * Entity class representing a User in the system.
  * Maps to the "users" table in the database.
  */
-@Entity  
-@Table(name = "users")     
 @Data
+@TableName("users")                  
 public class User {
 
     // Primary key with auto-increment
-    @Id    
-    @GeneratedValue(strategy = GenerationType.IDENTITY)  
+    @TableId(value = "id", type = IdType.AUTO)   
     private Long id;
 
     // Unique username used for login
+    @TableField("username")
     private String username;
 
     // Encrypted password for authentication
+    @TableField("password")
     private String password;
 
     // User's email address
+    @TableField("email")
     private String email;
 
     // User's phone number
+    @TableField("phone")
     private String phone;
 
     // Timestamp indicating when the user account was created
-    @Column(name = "created_at")
+    @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
     // File name or URL of the user's avatar image
-    @Column(name = "avatar_url")
+    @TableField("avatar_url")
     private String avatarUrl;
 
     // User role, e.g., "USER" or "ADMIN"
+    @TableField("role")
     private String role;
 }
 

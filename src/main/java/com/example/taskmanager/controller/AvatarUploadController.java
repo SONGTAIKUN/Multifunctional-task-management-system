@@ -1,10 +1,9 @@
 package com.example.taskmanager.controller; 
 
-import com.example.taskmanager.model.User;
-import com.example.taskmanager.repository.UserRepository;
-import com.example.taskmanager.util.JwtUtil;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.taskmanager.model.User;
+import com.example.taskmanager.repository.UserMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,13 +22,11 @@ public class AvatarUploadController {
     @Value("${avatar.upload-dir}")      // Injects the configured avatar storage directory from application.properties/yaml
     private String avatarDir;
 
-    @Autowired
-    private UserRepository userRepository;      // Injects the UserRepository to access user data
-
-    @Autowired
-    private JwtUtil jwtUtil;    // Injects the utility class for JWT handling (not used here but may be used elsewhere)
-
-
+    private final UserMapper userMapper;     // Injects UserMapper
+    
+    public AvatarUploadController(UserMapper userMapper) {
+        this.userMapper = userMapper;
+    }
 
     /**
      * Endpoint to upload a user's avatar image.
@@ -46,7 +43,9 @@ public class AvatarUploadController {
 
         // Get the username of the currently authenticated user
         String username = principal.getName();  
-        User user = userRepository.findByUsername(username);
+        User user = userMapper.selectOne(
+                new LambdaQueryWrapper<User>().eq(User::getUsername, username)
+        );
 
         // If the user does not exist, return 401 Unauthorized
         if (user == null) {
@@ -78,7 +77,7 @@ public class AvatarUploadController {
 
             // Update the user's avatar URL in the database
             user.setAvatarUrl(fileName);
-            userRepository.save(user);
+            userMapper.updateById(user);
 
             // Return success response
             return ResponseEntity.ok("Upload successful");

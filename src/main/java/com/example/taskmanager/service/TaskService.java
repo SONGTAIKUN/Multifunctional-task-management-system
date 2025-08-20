@@ -6,6 +6,8 @@ import com.example.taskmanager.model.Task.Priority;
 import com.example.taskmanager.model.Task.Status;
 
 import java.security.Principal;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.springframework.data.domain.Page;
@@ -83,4 +85,6 @@ public interface TaskService {
      */
     void deleteTask(Long id, Principal principal) throws IllegalAccessException, NoSuchElementException;
 
+    /** ✅ New: For the scheduler to query "tasks due today" */
+    List<Task> findByDeadlineBetween(LocalDateTime start, LocalDateTime end);
 }

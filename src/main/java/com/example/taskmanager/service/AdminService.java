@@ -1,16 +1,14 @@
 package com.example.taskmanager.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.example.taskmanager.dto.TaskDTO;
 import com.example.taskmanager.model.User;
-
-import org.springframework.data.domain.Page;
-import org.springframework.http.ResponseEntity;
-
-import java.util.Map;
 import com.example.taskmanager.model.Task.Status;
 import com.example.taskmanager.model.Task.Priority;
+import org.springframework.http.ResponseEntity;
 
 import java.security.Principal;
+import java.util.Map;
 
 /**
  * Service interface for administrator-level operations.
@@ -25,7 +23,7 @@ public interface AdminService {
      * @param size The number of users per page.
      * @return A paginated list of User entities.
      */
-    Page<User> getUsersPage(int page, int size);
+    IPage<User> getUsersPage(int page, int size);
 
     /**
      * Updates the role of a specific user by user ID.
@@ -48,7 +46,9 @@ public interface AdminService {
      * @param username Optional filter to show tasks by specific user.
      * @return A paginated list of TaskDTOs.
      */
-    Page<TaskDTO> getAllTasksByAdmin(int page, int size, Status status, Priority priority, String keyword, String username);
+    IPage<TaskDTO> getAllTasksByAdmin(int page, int size,
+                                    Status status, Priority priority,
+                                    String keyword, String username);
 
     /**
      * Creates a new task for a specific user based on the provided data.

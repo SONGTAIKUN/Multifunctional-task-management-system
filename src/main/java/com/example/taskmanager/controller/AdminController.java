@@ -1,6 +1,7 @@
 package com.example.taskmanager.controller;
 
 import com.example.taskmanager.service.AdminService;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.example.taskmanager.dto.TaskDTO;
 import com.example.taskmanager.model.User;
 
@@ -8,8 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import org.springframework.data.domain.Page;
 
 import java.util.Map;
 import com.example.taskmanager.model.Task.Status;
@@ -32,10 +31,10 @@ public class AdminController {
      * Accessible via GET /api/admin/users?page=0&size=10
      */
     @GetMapping("/users")
-    public ResponseEntity<Page<User>> getUsersPage(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(adminService.getUsersPage(page, size));
+    public ResponseEntity<IPage<User>> getUsersPage(@RequestParam(defaultValue = "0") int page,
+                                                    @RequestParam(defaultValue = "10") int size) {
+        IPage<User> result = adminService.getUsersPage(page, size);
+        return ResponseEntity.ok(result);
     }
 
     /**
@@ -54,15 +53,14 @@ public class AdminController {
      * Accessible via GET /api/admin/tasks?...params...
      */
     @GetMapping("/tasks")
-    public ResponseEntity<Page<TaskDTO>> getAllTasksByAdmin(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) Status status,
-            @RequestParam(required = false) Priority priority,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String username
-    ) {
-        return ResponseEntity.ok(adminService.getAllTasksByAdmin(page, size, status, priority, keyword, username));
+    public ResponseEntity<IPage<TaskDTO>> getAllTasks(@RequestParam(defaultValue = "0") int page,
+                                                      @RequestParam(defaultValue = "10") int size,
+                                                      @RequestParam(required = false) Status status,
+                                                      @RequestParam(required = false) Priority priority,
+                                                      @RequestParam(required = false) String keyword,
+                                                      @RequestParam(required = false) String username) {
+        IPage<TaskDTO> result = adminService.getAllTasksByAdmin(page, size, status, priority, keyword, username);
+        return ResponseEntity.ok(result);
     }
 
     /**

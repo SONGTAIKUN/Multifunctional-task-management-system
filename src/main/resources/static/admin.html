@@ -140,7 +140,8 @@
 </div>
 
 <script>
-    let currentPage = 0;
+    let currentUserPage = 0;   // 用户列表分页
+    let currentTaskPage = 0;   // 任务列表分页
     const pageSize = 5;
 
     function loadUsers(page = 0) {
@@ -153,11 +154,16 @@
         })
         .then(data => {
             const container = document.getElementById("userList");
-            const users = data.content;
-            const totalPages = data.totalPages;
 
-            if (!users || users.length === 0) {
+            // ✅ 适配 IPage
+            const users = Array.isArray(data.records) ? data.records : [];
+            const totalPages = typeof data.pages === 'number' ? data.pages : 0;
+            const currentFromServer1Based = typeof data.current === 'number' ? data.current : 1;
+            const current0 = Math.max(0, currentFromServer1Based - 1);
+
+            if (users.length === 0) {
                 container.innerHTML = "<p>No users found</p>";
+                currentUserPage = current0;
                 return;
             }
 
@@ -182,13 +188,13 @@
 
             container.innerHTML += `
                 <div style="margin-top: 16px;">
-                    <button ${page === 0 ? "disabled" : ""} onclick="loadUsers(${page - 1})">Previous</button>
-                    <span style="margin: 0 10px;">Page ${page + 1} / ${totalPages}</span>
-                    <button ${page + 1 >= totalPages ? "disabled" : ""} onclick="loadUsers(${page + 1})">Next</button>
+                    <button ${current0 === 0 ? "disabled" : ""} onclick="loadUsers(${current0 - 1})">Previous</button>
+                    <span style="margin: 0 10px;">Page ${current0 + 1} / ${totalPages}</span>
+                    <button ${current0 + 1 >= totalPages ? "disabled" : ""} onclick="loadUsers(${current0 + 1})">Next</button>
                 </div>
             `;
 
-            currentPage = page;
+            currentUserPage = current0;
         })
         .catch(err => {
             document.getElementById("userList").innerHTML = `<p style="color: red;">Failed to load: ${err.message}</p>`;
@@ -221,15 +227,16 @@
         const status = document.getElementById("status").value.trim();
         const priority = document.getElementById("priority").value.trim();
         const keyword = document.getElementById("keyword").value.trim();
-        const username = document.getElementById("username").value.trim();
+        theUsername = document.getElementById("username").value.trim();
 
         const url = new URL("/api/admin/tasks", window.location.origin);
         url.searchParams.set("page", page);
         url.searchParams.set("size", pageSize);
-        if (status) url.searchParams.set("status", encodeURIComponent(status));
-        if (priority) url.searchParams.set("priority", encodeURIComponent(priority));
-        if (keyword) url.searchParams.set("keyword", encodeURIComponent(keyword));
-        if (username) url.searchParams.set("username", encodeURIComponent(username));
+        // ✅ 不要二次编码，URLSearchParams 会自动编码
+        if (status)   url.searchParams.set("status", status);
+        if (priority) url.searchParams.set("priority", priority);
+        if (keyword)  url.searchParams.set("keyword", keyword);
+        if (theUsername) url.searchParams.set("username", theUsername);
 
         fetch(url.toString(), {
             headers: { "Authorization": "Bearer " + token }
@@ -240,11 +247,16 @@
         })
         .then(data => {
             const list = document.getElementById("taskList");
-            const tasks = data.content;
-            const totalPages = data.totalPages;
 
-            if (!tasks || tasks.length === 0) {
+            // ✅ 适配 IPage
+            const tasks = Array.isArray(data.records) ? data.records : [];
+            const totalPages = typeof data.pages === 'number' ? data.pages : 0;
+            const currentFromServer1Based = typeof data.current === 'number' ? data.current : 1;
+            const current0 = Math.max(0, currentFromServer1Based - 1);
+
+            if (tasks.length === 0) {
                 list.innerHTML = "<p>No tasks found</p>";
+                currentTaskPage = current0;
                 return;
             }
 
@@ -267,11 +279,13 @@
 
             list.innerHTML += `
                 <div style="margin-top: 12px;">
-                    <button ${page === 0 ? "disabled" : ""} onclick="loadAllTasks(${page - 1})">Previous</button>
-                    <span style="margin: 0 10px;">Page ${page + 1} / ${totalPages}</span>
-                    <button ${page + 1 >= totalPages ? "disabled" : ""} onclick="loadAllTasks(${page + 1})">Next</button>
+                    <button ${current0 === 0 ? "disabled" : ""} onclick="loadAllTasks(${current0 - 1})">Previous</button>
+                    <span style="margin: 0 10px;">Page ${current0 + 1} / ${totalPages}</span>
+                    <button ${current0 + 1 >= totalPages ? "disabled" : ""} onclick="loadAllTasks(${current0 + 1})">Next</button>
                 </div>
             `;
+
+            currentTaskPage = current0;
         })
         .catch(err => {
             document.getElementById("taskList").innerHTML = `<p style="color:red;">Failed to load: ${err.message}</p>`;
@@ -288,7 +302,7 @@
         .then(res => {
             if (!res.ok) throw new Error("Delete failed");
             alert("Task deleted");
-            loadAllTasks(currentPage);
+            loadAllTasks(typeof currentTaskPage === 'number' ? currentTaskPage : 0);
         })
         .catch(err => {
             alert("Failed to delete task. Please try again later.");
@@ -321,7 +335,8 @@
         })
         .then(() => {
             alert("Task created successfully ✅");
-            loadAllTasks(currentPage);
+            // ✅ 修复：使用任务分页变量，兜底到 0
+            loadAllTasks(typeof currentTaskPage === 'number' ? currentTaskPage : 0);
         })
         .catch(err => {
             alert("Failed to create task: " + err.message);
@@ -348,6 +363,13 @@
         });
     }
 
+    window.addEventListener("DOMContentLoaded", () => {
+        loadSystemStatus();
+        // 可选：页面加载后自动拉一次
+        // loadUsers(0);
+        // loadAllTasks(0);
+    });
+
     function downloadTaskExcel() {
         fetch("/api/admin/tasks/export", {
             method: "GET",
@@ -371,8 +393,6 @@
             alert("Export failed: " + error.message);
         });
     }
-
-    window.addEventListener("DOMContentLoaded", loadSystemStatus);
 </script>
 
 </body>
